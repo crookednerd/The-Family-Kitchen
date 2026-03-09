@@ -166,6 +166,8 @@
     .step-text { font-size: 14px; font-weight: 500; color: var(--text); line-height: 1.65; }
     .notes-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--green); margin-bottom: 6px; }
     .notes-box { background: var(--green-light); border-left: 3px solid var(--green); border-radius: 0 10px 10px 0; padding: 13px 15px; font-size: 13px; font-weight: 500; color: var(--text-mid); line-height: 1.65; white-space: pre-wrap; }
+    .original-link-btn { display: inline-block; padding: 10px 22px; background: var(--green); color: #fff; border-radius: 8px; text-decoration: none; font-size: 14px; font-weight: 600; transition: background 0.2s; }
+    .original-link-btn:hover { background: var(--green-dark, #2a5a3a); }
   </style>
 </head>
 <body>
@@ -233,6 +235,7 @@
       <div id="modal-ingredients"></div>
       <div id="modal-steps"></div>
       <div id="modal-notes"></div>
+      <div id="modal-link" style="margin-top:20px;"></div>
     </div>
   </div>
 </div>
@@ -339,6 +342,7 @@ function parseCSV(text) {
     author: ['author', 'by', 'submitted by', 'from', 'source', 'contributor'],
     ingredients: ['ingredients', 'ingredient list', 'ingredient'],
     steps: ['steps', 'instructions', 'directions', 'method', 'preparation', 'procedure'],
+    link: ['link', 'url', 'google link', 'source link', 'recipe link', 'original link'],
   };
 
   // Build a mapping from raw header index to field name
@@ -396,6 +400,7 @@ function parseCSV(text) {
       author: get('author') || '',
       ingredients,
       steps,
+      link: get('link') || '',
     });
   }
 
@@ -550,6 +555,13 @@ function openModal(recipe) {
   } else { stepsEl.innerHTML = ''; }
 
   document.getElementById('modal-notes').innerHTML = '';
+
+  // Original recipe link button
+  const linkEl = document.getElementById('modal-link');
+  if (recipe.link) {
+    linkEl.innerHTML = `<a href="${recipe.link}" target="_blank" rel="noopener noreferrer" class="original-link-btn">View Original Recipe &#8599;</a>`;
+  } else { linkEl.innerHTML = ''; }
+
   document.getElementById('modal').scrollTop = 0;
   overlay.classList.add('open');
   document.body.style.overflow = 'hidden';
