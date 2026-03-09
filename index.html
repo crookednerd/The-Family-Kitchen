@@ -247,14 +247,24 @@ async function loadRecipes() {
   // ── PASTE YOUR GOOGLE SHEET CSV URL BELOW ──────────────────────
   // After publishing your sheet: File → Share → Publish to web → CSV
   const SHEET_CSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT-nVAf4Cr8jEO-rDlDA83VD8qZkz6c2eW7OKibL5wZriUyIgiMVWxlHOW_GRLtJBS5UXiMLHwBQrWL/pub?output=csv';
-  // CORS proxy lets the browser fetch Google Sheets cross-origin
-  const SHEET_URL = `https://corsproxy.io/?url=${encodeURIComponent(SHEET_CSV)}`;
   // ───────────────────────────────────────────────────────────────
 
+  // Try multiple CORS proxies in order until one works
+  const PROXIES = [
+    `https://api.allorigins.win/raw?url=${encodeURIComponent(SHEET_CSV)}`,
+    `https://corsproxy.io/?url=${encodeURIComponent(SHEET_CSV)}`,
+    `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(SHEET_CSV)}`,
+  ];
+
   try {
-    const res = await fetch(SHEET_URL);
-    if (!res.ok) throw new Error('Failed to fetch sheet');
-    const csv = await res.text();
+    let csv = null;
+    for (const url of PROXIES) {
+      try {
+        const res = await fetch(url);
+        if (res.ok) { csv = await res.text(); break; }
+      } catch(e) { continue; }
+    }
+    if (!csv) throw new Error('All proxies failed');
     RECIPES = parseCSV(csv);
     document.getElementById('recipe-count-sub').textContent =
       `${RECIPES.length} recipes passed down with love`;
