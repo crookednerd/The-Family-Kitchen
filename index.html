@@ -246,7 +246,9 @@ async function loadRecipes() {
 
   // ── PASTE YOUR GOOGLE SHEET CSV URL BELOW ──────────────────────
   // After publishing your sheet: File → Share → Publish to web → CSV
-  const SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT-nVAf4Cr8jEO-rDlDA83VD8qZkz6c2eW7OKibL5wZriUyIgiMVWxlHOW_GRLtJBS5UXiMLHwBQrWL/pub?output=csv';
+  const SHEET_CSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT-nVAf4Cr8jEO-rDlDA83VD8qZkz6c2eW7OKibL5wZriUyIgiMVWxlHOW_GRLtJBS5UXiMLHwBQrWL/pub?output=csv';
+  // CORS proxy lets the browser fetch Google Sheets cross-origin
+  const SHEET_URL = `https://corsproxy.io/?url=${encodeURIComponent(SHEET_CSV)}`;
   // ───────────────────────────────────────────────────────────────
 
   try {
