@@ -246,14 +246,14 @@ async function loadRecipes() {
 
   // ── PASTE YOUR GOOGLE SHEET CSV URL BELOW ──────────────────────
   // After publishing your sheet: File → Share → Publish to web → CSV
-  const SHEET_CSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT-nVAf4Cr8jEO-rDlDA83VD8qZkz6c2eW7OKibL5wZriUyIgiMVWxlHOW_GRLtJBS5UXiMLHwBQrWL/pub?output=csv';
+  const SHEET_CSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT-nVAf4Cr8jEO-rDlDA83VD8qZkz6c2eW7OKibL5wZriUyIgiMVWxlHOW_GRLtJBS5UXiMLHwBQrWL/pub?gid=0&single=true&output=csv';
   // ───────────────────────────────────────────────────────────────
 
   // Try direct URL first, then CORS proxies as fallback
   const PROXIES = [
     SHEET_CSV,
     `https://api.allorigins.win/raw?url=${encodeURIComponent(SHEET_CSV)}`,
-    `https://corsproxy.io/?url=${encodeURIComponent(SHEET_CSV)}`,
+    `https://corsproxy.io/?${encodeURIComponent(SHEET_CSV)}`,
     `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(SHEET_CSV)}`,
   ];
 
@@ -262,11 +262,21 @@ async function loadRecipes() {
     for (const url of PROXIES) {
       try {
         const res = await fetch(url);
-        if (res.ok) { csv = await res.text(); break; }
+        if (!res.ok) continue;
+        const text = await res.text();
+        // Skip if response is HTML (e.g. Google login page for non-public sheets)
+        if (text.trimStart().startsWith('<!') || text.trimStart().startsWith('<html')) continue;
+        csv = text;
+        break;
       } catch(e) { continue; }
     }
     if (!csv) throw new Error('All proxies failed');
+    console.log('CSV fetched, length:', csv.length, 'preview:', csv.substring(0, 300));
     RECIPES = parseCSV(csv);
+    console.log('Parsed recipes:', RECIPES.length);
+    if (RECIPES.length === 0) {
+      console.warn('No recipes parsed! CSV starts with:', JSON.stringify(csv.substring(0, 500)));
+    }
     document.getElementById('recipe-count-sub').textContent =
       `${RECIPES.length} recipes passed down with love`;
     loadingEl.style.display = 'none';
@@ -312,20 +322,54 @@ function parseCSV(text) {
     return rows;
   }
 
+  // Strip BOM (Google Sheets CSV exports often include it)
+  if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+
   const rows = parseRows(text).filter(r => r.some(c => c.trim()));
   if (rows.length < 2) return [];
 
-  const headers = rows[0].map(h => h.trim().toLowerCase());
+  // Clean headers: lowercase, strip invisible/non-printable chars
+  const rawHeaders = rows[0].map(h => h.replace(/[^\x20-\x7E]/g, '').trim().toLowerCase());
+  console.log('CSV raw headers:', rawHeaders, 'Total rows:', rows.length);
+
+  // Map common header aliases to expected field names
+  const ALIASES = {
+    title: ['title', 'recipe title', 'recipe name', 'name', 'recipe'],
+    category: ['category', 'type', 'meal type', 'course'],
+    author: ['author', 'by', 'submitted by', 'from', 'source', 'contributor'],
+    ingredients: ['ingredients', 'ingredient list', 'ingredient'],
+    steps: ['steps', 'instructions', 'directions', 'method', 'preparation', 'procedure'],
+  };
+
+  // Build a mapping from raw header index to field name
+  const headerMap = {};
+  rawHeaders.forEach((h, idx) => {
+    for (const [field, aliases] of Object.entries(ALIASES)) {
+      if (aliases.includes(h)) { headerMap[field] = idx; break; }
+    }
+  });
+
+  // Fallback: if no 'title' header found, assume columns are in order:
+  // title, category, author, ingredients, steps
+  if (headerMap.title === undefined && rawHeaders.length >= 1) {
+    console.warn('No "title" header found, falling back to positional columns');
+    ['title', 'category', 'author', 'ingredients', 'steps'].forEach((f, i) => {
+      if (i < rawHeaders.length) headerMap[f] = i;
+    });
+  }
+
+  console.log('Header mapping:', headerMap);
   const recipes = [];
 
   for (let i = 1; i < rows.length; i++) {
     const cols = rows[i];
-    const row = {};
-    headers.forEach((h, idx) => row[h] = (cols[idx] || '').trim());
-    if (!row.title) continue;
+    const get = field => (cols[headerMap[field]] || '').trim();
+
+    const title = get('title');
+    if (!title) continue;
 
     // Parse ingredients: "amount | name" per line
-    const ingredients = (row.ingredients || '').split('\n')
+    const ingredients = (get('ingredients')).split('\n')
       .filter(Boolean)
       .map(line => {
         const pipe = line.indexOf('|');
@@ -334,13 +378,13 @@ function parseCSV(text) {
       });
 
     // Parse steps: one per line
-    const steps = (row.steps || '').split('\n').filter(s => s.trim().length > 5);
+    const steps = (get('steps')).split('\n').filter(s => s.trim().length > 0);
 
     recipes.push({
       id: i,
-      title: row.title,
-      category: row.category || 'Other',
-      author: row.author || '',
+      title,
+      category: get('category') || 'Other',
+      author: get('author') || '',
       ingredients,
       steps,
     });
