@@ -249,8 +249,9 @@ async function loadRecipes() {
   const SHEET_CSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT-nVAf4Cr8jEO-rDlDA83VD8qZkz6c2eW7OKibL5wZriUyIgiMVWxlHOW_GRLtJBS5UXiMLHwBQrWL/pub?output=csv';
   // ───────────────────────────────────────────────────────────────
 
-  // Try multiple CORS proxies in order until one works
+  // Try direct URL first, then CORS proxies as fallback
   const PROXIES = [
+    SHEET_CSV,
     `https://api.allorigins.win/raw?url=${encodeURIComponent(SHEET_CSV)}`,
     `https://corsproxy.io/?url=${encodeURIComponent(SHEET_CSV)}`,
     `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(SHEET_CSV)}`,
@@ -314,7 +315,7 @@ function parseCSV(text) {
   const rows = parseRows(text).filter(r => r.some(c => c.trim()));
   if (rows.length < 2) return [];
 
-  const headers = rows[0].map(h => h.trim());
+  const headers = rows[0].map(h => h.trim().toLowerCase());
   const recipes = [];
 
   for (let i = 1; i < rows.length; i++) {
@@ -417,7 +418,6 @@ let selectedRecipe = null;
 // Categories built dynamically from loaded recipes
 
 // ── INIT ────────────────────────────────────────────────────────
-document.getElementById('recipe-count-sub').textContent = `${RECIPES.length} recipes passed down with love`;
 
 // Build filters
 function buildFilters() {
