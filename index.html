@@ -246,14 +246,14 @@ async function loadRecipes() {
 
   // ── PASTE YOUR GOOGLE SHEET CSV URL BELOW ──────────────────────
   // After publishing your sheet: File → Share → Publish to web → CSV
-  const SHEET_CSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT-nVAf4Cr8jEO-rDlDA83VD8qZkz6c2eW7OKibL5wZriUyIgiMVWxlHOW_GRLtJBS5UXiMLHwBQrWL/pub?output=csv';
+  const SHEET_CSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT-nVAf4Cr8jEO-rDlDA83VD8qZkz6c2eW7OKibL5wZriUyIgiMVWxlHOW_GRLtJBS5UXiMLHwBQrWL/pub?gid=0&single=true&output=csv';
   // ───────────────────────────────────────────────────────────────
 
   // Try direct URL first, then CORS proxies as fallback
   const PROXIES = [
     SHEET_CSV,
     `https://api.allorigins.win/raw?url=${encodeURIComponent(SHEET_CSV)}`,
-    `https://corsproxy.io/?url=${encodeURIComponent(SHEET_CSV)}`,
+    `https://corsproxy.io/?${encodeURIComponent(SHEET_CSV)}`,
     `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(SHEET_CSV)}`,
   ];
 
@@ -262,11 +262,18 @@ async function loadRecipes() {
     for (const url of PROXIES) {
       try {
         const res = await fetch(url);
-        if (res.ok) { csv = await res.text(); break; }
+        if (!res.ok) continue;
+        const text = await res.text();
+        // Skip if response is HTML (e.g. Google login page for non-public sheets)
+        if (text.trimStart().startsWith('<!') || text.trimStart().startsWith('<html')) continue;
+        csv = text;
+        break;
       } catch(e) { continue; }
     }
     if (!csv) throw new Error('All proxies failed');
+    console.log('CSV fetched, length:', csv.length, 'preview:', csv.substring(0, 200));
     RECIPES = parseCSV(csv);
+    console.log('Parsed recipes:', RECIPES.length, RECIPES.slice(0, 2));
     document.getElementById('recipe-count-sub').textContent =
       `${RECIPES.length} recipes passed down with love`;
     loadingEl.style.display = 'none';
@@ -312,10 +319,15 @@ function parseCSV(text) {
     return rows;
   }
 
+  // Strip BOM (Google Sheets CSV exports often include it)
+  if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+
   const rows = parseRows(text).filter(r => r.some(c => c.trim()));
   if (rows.length < 2) return [];
 
-  const headers = rows[0].map(h => h.trim().toLowerCase());
+  // Clean headers: lowercase, strip invisible/non-printable chars
+  const headers = rows[0].map(h => h.replace(/[^\x20-\x7E]/g, '').trim().toLowerCase());
+  console.log('CSV headers:', headers, 'Total rows:', rows.length);
   const recipes = [];
 
   for (let i = 1; i < rows.length; i++) {
@@ -334,7 +346,7 @@ function parseCSV(text) {
       });
 
     // Parse steps: one per line
-    const steps = (row.steps || '').split('\n').filter(s => s.trim().length > 5);
+    const steps = (row.steps || '').split('\n').filter(s => s.trim().length > 0);
 
     recipes.push({
       id: i,
