@@ -368,8 +368,10 @@ function parseCSV(text) {
     const title = get('title');
     if (!title) continue;
 
-    // Parse ingredients: "amount | name" per line
-    const ingredients = (get('ingredients')).split('\n')
+    // Parse ingredients: "amount | name" per line, or comma-separated
+    const rawIng = get('ingredients');
+    const ingLines = rawIng.includes('\n') ? rawIng.split('\n') : rawIng.split(',');
+    const ingredients = ingLines
       .filter(Boolean)
       .map(line => {
         const pipe = line.indexOf('|');
@@ -377,8 +379,15 @@ function parseCSV(text) {
         return { amount: line.slice(0, pipe).trim(), name: line.slice(pipe + 1).trim() };
       });
 
-    // Parse steps: one per line
-    const steps = (get('steps')).split('\n').filter(s => s.trim().length > 0);
+    // Parse steps: one per line, or split by numbered prefixes / sentence-ending periods
+    const rawSteps = get('steps');
+    let steps;
+    if (rawSteps.includes('\n') && rawSteps.split('\n').filter(s => s.trim()).length > 1) {
+      steps = rawSteps.split('\n').filter(s => s.trim().length > 0);
+    } else {
+      // Split by sentence-ending periods (period followed by space + uppercase letter)
+      steps = rawSteps.split(/\.(?:\s+)(?=[A-Z])/).map(s => s.trim()).filter(s => s.length > 0);
+    }
 
     recipes.push({
       id: i,
